@@ -1,69 +1,97 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import type { Socket } from 'socket.io-client';
+
+// Declare a global interface for the Window object to include 'io'
+// This is necessary because the socket.io-client library is loaded via a script tag
+// and TypeScript doesn't know about the `io` property on the global window object by default.
+declare global {
+  interface Window {
+    io: (url: string) => Socket;
+    // We add a global variable for the backend URL, as 'process.env' is not available in the browser.
+    REACT_APP_BACKEND_URL: string;
+  }
+}
+
+// Define the type for a Player object to ensure type safety throughout the application.
+interface Player {
+  id: string;
+  name: string;
+  vote: number | '?' | null;
+}
 
 // The main application component for the Planning Poker game.
 // It manages the state of the game, including card selection and revealing votes.
 const App = () => {
   // Fibonacci sequence for planning poker cards.
   const cards = [1, 2, 3, 5, 8, 13, 21];
-  
-  const [selectedCard, setSelectedCard] = useState(null);
-  const [roomId, setRoomId] = useState('');
-  const [playerName, setPlayerName] = useState('');
-  const [players, setPlayers] = useState([]);
-  const [isRevealed, setIsRevealed] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const [error, setError] = useState('');
-  
-  const socketRef = useRef(null);
-  const roomIdInputRef = useRef(null);
-  const playerNameInputRef = useRef(null);
 
-  // This script tag loads the socket.io-client library from a CDN.
-  // It's a workaround for environments that can't resolve NPM packages directly.
+  // State variables for the game
+  const [selectedCard, setSelectedCard] = useState<number | null>(null);
+  const [roomId, setRoomId] = useState<string>('');
+  const [playerName, setPlayerName] = useState<string>('');
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [isRevealed, setIsRevealed] = useState<boolean>(false);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+
+  // Refs for direct access to DOM elements and the socket instance
+  const socketRef = useRef<Socket | null>(null);
+  const roomIdInputRef = useRef<HTMLInputElement>(null);
+  const playerNameInputRef = useRef<HTMLInputElement>(null);
+
+  // This hook handles the initial connection to the backend and sets up event listeners.
   useEffect(() => {
+    // Determine the backend URL based on environment variables for deployment
+    // We use a global `window` variable as `process.env` is not available in the browser.
+    // For deployment, you would need to set `window.REACT_APP_BACKEND_URL` on the page.
+    // NOTE: The protocol `https://` is crucial here to ensure the browser makes an absolute request.
+    const backendUrl = 'https://pythonpoker-production.up.railway.app';
+
     const script = document.createElement('script');
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js';
     script.onload = () => {
       // Connect to the backend server after the library is loaded.
-      socketRef.current = window.io('https://pythonpoker-production.up.railway.app'); 
-      const socket = socketRef.current;
+      if (window.io) {
+        socketRef.current = window.io(backendUrl);
+        const socket = socketRef.current;
 
-      socket.on('connect', () => {
-        console.log('Connected to backend.');
-        setIsConnected(true);
-      });
+        socket.on('connect', () => {
+          console.log('Connected to backend.');
+          setIsConnected(true);
+        });
 
-      socket.on('disconnect', () => {
-        console.log('Disconnected from backend.');
-        setIsConnected(false);
-        setRoomId('');
-        setPlayers([]);
-      });
+        socket.on('disconnect', () => {
+          console.log('Disconnected from backend.');
+          setIsConnected(false);
+          setRoomId('');
+          setPlayers([]);
+        });
 
-      socket.on('player_list_update', (data) => {
-        setPlayers(data);
-      });
-      
-      socket.on('player_voted', (data) => {
-        setPlayers(prevPlayers => prevPlayers.map(p => 
-          p.id === data.playerId ? { ...p, vote: '?' } : p
-        ));
-      });
+        socket.on('player_list_update', (data: Player[]) => {
+          setPlayers(data);
+        });
 
-      socket.on('votes_revealed', (data) => {
-        setPlayers(data);
-        setIsRevealed(true);
-      });
+        socket.on('player_voted', (data: { playerId: string }) => {
+          setPlayers(prevPlayers => prevPlayers.map(p =>
+            p.id === data.playerId ? { ...p, vote: '?' } : p
+          ));
+        });
 
-      socket.on('game_reset', (data) => {
-        setPlayers(data);
-        setSelectedCard(null);
-        setIsRevealed(false);
-      });
+        socket.on('votes_revealed', (data: Player[]) => {
+          setPlayers(data);
+          setIsRevealed(true);
+        });
 
-      socket.on('error', (data) => {
-        setError(data.message);
-      });
+        socket.on('game_reset', (data: Player[]) => {
+          setPlayers(data);
+          setSelectedCard(null);
+          setIsRevealed(false);
+        });
+
+        socket.on('error', (data: { message: string }) => {
+          setError(data.message);
+        });
+      }
     };
     document.head.appendChild(script);
 
@@ -80,16 +108,16 @@ const App = () => {
   }, []);
 
   // Calculate the average of the revealed votes.
-  const calculateAverage = () => {
-    const votes = players.map(p => p.vote).filter(v => typeof v === 'number');
-    if (votes.length === 0) return 0;
+  const calculateAverage = (): string => {
+    const votes = players.map(p => p.vote).filter(v => typeof v === 'number') as number[];
+    if (votes.length === 0) return '0';
     const sum = votes.reduce((acc, curr) => acc + curr, 0);
     return (sum / votes.length).toFixed(1);
   };
-  
+
   // Handle a user selecting a card.
-  const handleCardClick = (card) => {
-    if (!isRevealed && isConnected) {
+  const handleCardClick = (card: number) => {
+    if (!isRevealed && isConnected && socketRef.current && roomId) {
       setSelectedCard(card);
       // Emit the vote to the backend.
       socketRef.current.emit('vote', { roomId, vote: card });
@@ -98,12 +126,13 @@ const App = () => {
 
   // Handle a user joining a room.
   const handleJoin = () => {
-    const currentRoomId = roomIdInputRef.current.value;
-    const currentPlayerName = playerNameInputRef.current.value;
-    
+    const currentRoomId = roomIdInputRef.current?.value;
+    const currentPlayerName = playerNameInputRef.current?.value;
+
     if (socketRef.current && currentRoomId && currentPlayerName) {
       // Set the room ID to trigger the UI transition to the game board
       setRoomId(currentRoomId);
+      setPlayerName(currentPlayerName);
       // Clear players and errors before joining
       setPlayers([]);
       setError('');
@@ -116,14 +145,15 @@ const App = () => {
 
   // Handle creating a new room.
   const handleCreateRoom = async () => {
-    const currentPlayerName = playerNameInputRef.current.value;
-    
+    const currentPlayerName = playerNameInputRef.current?.value;
+    const backendUrl = 'https://pythonpoker-production.up.railway.app';
+
     if (!currentPlayerName) {
       setError('Please enter your name before creating a room.');
       return;
     }
     try {
-      const response = await fetch('https://pythonpoker-production.up.railway.app/create_room', {
+      const response = await fetch(`${backendUrl}/create_room`, {
         method: 'POST',
       });
       if (!response.ok) {
@@ -131,13 +161,21 @@ const App = () => {
       }
       const data = await response.json();
       setRoomId(data.roomId);
+      setPlayerName(currentPlayerName);
       // Clear players and automatically join the room after it is created
       setPlayers([]);
-      socketRef.current.emit('join', { roomId: data.roomId, playerName: currentPlayerName });
-      console.log(`Automatically joined room ${data.roomId} after creation.`);
-    } catch (err) {
+      if (socketRef.current) {
+        socketRef.current.emit('join', { roomId: data.roomId, playerName: currentPlayerName });
+        console.log(`Automatically joined room ${data.roomId} after creation.`);
+      }
+    } catch (err: unknown) {
       console.error('Failed to create room:', err);
-      setError(`Failed to connect to the backend: ${err.message}. Please ensure the Python server is running and accessible.`);
+      // Type guard for the unknown error type
+      if (err instanceof Error) {
+        setError(`Failed to connect to the backend: ${err.message}. Please ensure the Python server is running and accessible.`);
+      } else {
+        setError('An unknown error occurred while creating a room.');
+      }
     }
   };
 
@@ -147,7 +185,7 @@ const App = () => {
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-center text-teal-400 drop-shadow-lg">
           Planning Poker
         </h1>
-        
+
         {!roomId ? (
           // Join or create room form
           <div className="bg-gray-800 p-8 rounded-3xl shadow-xl border border-gray-700 space-y-4">
@@ -167,7 +205,7 @@ const App = () => {
                 placeholder="Enter Room ID"
                 className="w-2/3 p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
-              <button 
+              <button
                 onClick={handleJoin}
                 className="w-1/3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
               >
@@ -201,9 +239,9 @@ const App = () => {
               {players.map(player => (
                 <div key={player.id} className="text-center">
                   <p className="text-sm text-gray-400 mb-2">{player.name}</p>
-                  <div 
-                    className={`flex items-center justify-center w-20 h-28 mx-auto text-3xl font-bold rounded-2xl shadow-inner 
-                               transition-all duration-300 transform 
+                  <div
+                    className={`flex items-center justify-center w-20 h-28 mx-auto text-3xl font-bold rounded-2xl shadow-inner
+                               transition-all duration-300 transform
                                ${
                                  isRevealed && player.vote !== null ? 'bg-teal-500 text-white scale-110 rotate-3' :
                                  selectedCard !== null && player.name === playerName ? 'bg-gray-600 text-gray-300 scale-105' :
@@ -241,15 +279,15 @@ const App = () => {
 
             {/* Action buttons and results */}
             <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
-              <button 
-                onClick={() => socketRef.current.emit('reveal', { roomId })}
+              <button
+                onClick={() => socketRef.current?.emit('reveal', { roomId })}
                 disabled={isRevealed || !isConnected}
                 className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
               >
                 Reveal Votes
               </button>
-              <button 
-                onClick={() => socketRef.current.emit('reset', { roomId })}
+              <button
+                onClick={() => socketRef.current?.emit('reset', { roomId })}
                 className="bg-red-600 hover:bg-red-700 active:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-300 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-all duration-200 w-full sm:w-auto"
               >
                 Reset
