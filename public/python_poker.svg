@@ -1,0 +1,29 @@
+<!-- Save as python-poker-color.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="Python Poker logo">
+  <title>Python Poker</title>
+  <!-- background circle (optional) -->
+  <circle cx="80" cy="80" r="78" fill="none"></circle>
+  <!-- spade base -->
+  <path d="M80 18
+           C60 40, 36 56, 36 84
+           C36 102, 52 118, 80 140
+           C108 118, 124 102, 124 84
+           C124 56, 100 40, 80 18 Z" fill="#0b7489"></path>
+  <!-- snake head inside spade -->
+  <path d="M80 36
+           C70 48, 60 54, 60 72
+           C60 86, 74 98, 80 106
+           C86 98, 100 86, 100 72
+           C100 54, 90 48, 80 36 Z" fill="#f29f05"></path>
+  <!-- eye -->
+  <circle cx="90" cy="60" r="3.5" fill="#082628"></circle>
+  <!-- small highlight -->
+  <path d="M72 50 C75 48, 82 48, 86 50" fill="none" stroke="#ffd78a" stroke-width="2" stroke-linecap="round"></path>
+  <!-- subtle shine on spade -->
+  <path d="M50 52 C58 44, 72 38, 80 36" fill="none" stroke="#0fa4bb" stroke-opacity="0.18" stroke-width="6" stroke-linecap="round"></path>
+  <!-- optional 'P' monogram at bottom (small) -->
+  <g transform="translate(64,100)">
+    <rect x="-6" y="18" width="28" height="18" rx="3" fill="transparent"></rect>
+    <path d="M0 0 L0 22 L9 22 C14 22, 18 19, 18 14 C18 9, 14 6, 9 6 L0 6 Z" transform="translate(6,6)" fill="#fff" opacity="0.95"></path>
+  </g>
+</svg>
