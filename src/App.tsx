@@ -1,10 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
-import type { Socket } from 'socket.io-client';
 
 // Declare a global interface for the Window object to include 'io'
 // This is necessary because the socket.io-client library is loaded via a script tag
 // and TypeScript doesn't know about the `io` property on the global window object by default.
 declare global {
+  // Define the type for the Socket.io client socket object
+  interface Socket {
+    on(event: string, callback: (...args: any[]) => void): void;
+    emit(event: string, ...args: any[]): void;
+    disconnect(): void;
+  }
+  
   interface Window {
     io: (url: string) => Socket;
     // We add a global variable for the backend URL, as 'process.env' is not available in the browser.
